@@ -7,7 +7,7 @@ public class AttributeRow : INotifyPropertyChanged
     public string Name { get; set; }
     public string TagName { get; set; }
     public string Category { get; set; }
-
+    public string ElementName { get; set; }
     public bool IsSelected
     {
         get => _isSelected;

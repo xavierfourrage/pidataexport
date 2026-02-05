@@ -13,6 +13,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using System.IO;
+using Newtonsoft.Json;
 
 namespace pidataexport
 {
@@ -24,13 +26,10 @@ namespace pidataexport
         public ConnectionHelperWindow()
         {
             InitializeComponent();
-
+           /* LoadRememberedSettings();*/
 
             LoadServers();
-            /*            AfServerComboBox.Items.Add("AFServer1");
-                        AfServerComboBox.Items.Add("AFServer2");
-                        PiDataArchiveComboBox.Items.Add("PIServer1");
-                        PiDataArchiveComboBox.Items.Add("PIServer2");*/
+
 
             this.DataContext = this;
     }
@@ -56,7 +55,7 @@ namespace pidataexport
                 MessageBox.Show($"Error connecting to PI system: {ex.Message}");
             }
         }
-        private void Ok_Click(object sender, RoutedEventArgs e)
+        private async void Ok_Click(object sender, RoutedEventArgs e)
         {
             try
             {
@@ -72,51 +71,78 @@ namespace pidataexport
                 bool afConnected = false;
                 bool piConnected = false;
 
-                // Use creds checkbox determines method
-                if (useCreds.IsChecked == true)
+                var win = new LoadingBox
                 {
-                    try
-                    {
-                        afServer.ConnectWithPrompt(null);
-                        afConnected = true;
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show($"Failed to connect to AF Server {afServer.Name} with credentials: {ex.Message}");
-                    }
+                    Owner = this,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+
+                if (useCreds.IsChecked == true)
+                {                
 
                     try
                     {
-                        piServer.ConnectWithPrompt();
+                        // Show window FIRST
+                        win.ConnectionStatusText.Text = $"Connecting to AF Server {afServer.Name}...";
+                        win.Show();
+
+                        // Force UI to render before background work
+                        await Task.Delay(50);
+
+                        await Task.Run(() => afServer.ConnectWithPrompt(null));
+                        afConnected = true;
+
+                        win.ConnectionStatusText.Text = $"Connecting to PI DA Server {piServer.Name}...";
+
+                        await Task.Delay(50);
+
+                        await Task.Run(() => piServer.ConnectWithPrompt());
                         piConnected = true;
+
+                        win.Close();
                     }
                     catch (Exception ex)
                     {
-                        MessageBox.Show($"Failed to connect to PI Server {piServer.Name} with credentials: {ex.Message}");
+                        win.Close();
+                        MessageBox.Show($"Connection failed: {ex.Message}");
                     }
                 }
+
                 else
                 {
-                    try
-                    {
-                        afServer.Connect();
-                        afConnected = true;
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show($"Failed to connect to AF Server {afServer.Name}: {ex.Message}");
-                    }
 
                     try
                     {
-                        piServer.Connect();
+                        // Show loading UI
+                        win.ConnectionStatusText.Text = $"Connecting to AF Server {afServer.Name}...";
+                        win.Show();
+
+                        // Let UI render
+                        await Task.Delay(50);
+
+                        // Background AF connection
+                        await Task.Run(() => afServer.Connect());
+                        afConnected = true;
+
+                        // Update message
+                        win.ConnectionStatusText.Text = $"Connecting to PI DA Server {piServer.Name}...";
+
+                        await Task.Delay(50);
+
+                        // Background PI connection
+                        await Task.Run(() => piServer.Connect());
                         piConnected = true;
+
+                        // Done
+                        win.Close();
                     }
                     catch (Exception ex)
                     {
-                        MessageBox.Show($"Failed to connect to PI Server {piServer.Name}: {ex.Message}");
+                        win.Close();
+                        MessageBox.Show($"Connection failed: {ex.Message}");
                     }
                 }
+
 
                 // Only proceed if both are connected
                 if (!afConnected || !piConnected)
@@ -133,6 +159,14 @@ namespace pidataexport
                     mainWindow._piSystem = afServer;
                     mainWindow.LoadAFDatabases();
                 }
+                //TEMPORARILY REMOVING REMEMBER CHOICE OPTION BOX IN VERSION V1.2
+              /*  if (rememberChoice.IsChecked == true)
+                {
+                    SaveConnectionSettings(
+                        AFServersComboBox.SelectedItem?.ToString(),
+                        PIDAServersComboBox.SelectedItem?.ToString()
+                    );
+                }*/
 
                 this.DialogResult = true;
                 this.Close();
@@ -141,6 +175,40 @@ namespace pidataexport
             {
                 MessageBox.Show($"Unexpected error: {ex.Message}");
             }
+        }
+        private void SaveConnectionSettings(string afServer, string piServer)
+        {
+            var settings = new ConnectionSettings
+            {
+                AFServer = afServer,
+                PIServer = piServer
+            };
+
+            string folder = GetConfigFolder();
+            string file = System.IO.Path.Combine(folder, "connection_settings.json");
+
+            File.WriteAllText(file, JsonConvert.SerializeObject(settings));
+
+        }
+        private string GetConfigFolder()
+        {
+            string exeFolder = System.IO.Path.GetDirectoryName(
+                System.Reflection.Assembly.GetExecutingAssembly().Location
+            );
+
+            string configFolder = System.IO.Path.Combine(exeFolder, "config");
+            Directory.CreateDirectory(configFolder);
+
+            return configFolder;
+        }
+      
+
+        private void ComboBoxes_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            bool hasAF = AFServersComboBox.SelectedItem != null;
+            bool hasPI = PIDAServersComboBox.SelectedItem != null;
+
+          /*  rememberChoice.IsEnabled = hasAF && hasPI;*/
         }
 
 

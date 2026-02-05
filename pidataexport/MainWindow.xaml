@@ -2,11 +2,19 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+        xmlns:xctk="http://schemas.xceed.com/wpf/xaml/toolkit"
+
         xmlns:local="clr-namespace:pidataexport"
         mc:Ignorable="d"
-        Title="PIDataExport" Height="935" Width="800">
-    <Window.Resources>
+        ResizeMode="CanResizeWithGrip"
+        SizeToContent="Manual"
+        WindowStartupLocation="CenterScreen"
+        Title="PIDataExport" Height="800" Width="800"      
+        >
+
+        <Window.Resources>
+
         <Style x:Key="ButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="LightGray"/>
             <Setter Property="Foreground" Value="Black"/>
@@ -64,216 +72,343 @@
 
 
 
+
+
     </Window.Resources>
     <Grid>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
 
-        <StackPanel>
-            <StackPanel Orientation="Horizontal" Margin="10,0,0,0">
-                <Label Content="AF Server: " VerticalAlignment="Top"/>
-                <Label x:Name="AFServer" Margin="-8,0,0,0" FontWeight="Bold" />
-                <Label Content="PI DA Server: " VerticalAlignment="Top"/>
-                <Label x:Name="PIDAServer" Margin="-8,0,0,0" FontWeight="Bold"/>
-                <Label>
-                    <TextBlock>
 
-                        <Hyperlink Click="OpenConnectionHelper_Click"> change </Hyperlink>
-                    </TextBlock>
-                </Label>
 
-            </StackPanel>
-           
-            <StackPanel Margin="10,0,10,0">
-                <ComboBox x:Name="AFDatabaseComboBox" 
+            <StackPanel Margin="0,0,0,0">
+                <StackPanel Orientation="Horizontal" Margin="10,0,0,0">
+                    <Label Content="AF Server: " VerticalAlignment="Top"/>
+                    <Label x:Name="AFServer" Margin="-8,0,0,0" FontWeight="Bold" />
+                    <Label Content="PI DA Server: " VerticalAlignment="Top"/>
+                    <Label x:Name="PIDAServer" Margin="-8,0,0,0" FontWeight="Bold"/>
+                    <Label>
+                        <TextBlock>
+
+                        <Hyperlink Click="OpenConnectionHelper_Click"> Connection Manager </Hyperlink>
+                        </TextBlock>
+                    </Label>
+
+                </StackPanel>
+
+                <StackPanel Margin="10,0,10,0">
+                    <ComboBox x:Name="AFDatabaseComboBox" 
                           SelectedIndex="0" 
                           SelectionChanged="LoadEquipements"                          
                           Margin="0,0,0,5"/>
 
-                <ComboBox x:Name="EquipementComboBox"
-          SelectedIndex="0"
-          Margin="0,0,0,5"
-          SelectionChanged="EquipementComboBox_SelectionChanged"/>
 
 
-            </StackPanel>
-            <StackPanel Margin="10,10,10,0">
-                <StackPanel Orientation="Horizontal" >
-                    <Label Content="Element Name [Filter]:"/>
-                    <TextBox x:Name="Elementname" Width="200" Margin="1,0,10,0" Tag="fef"  Text="{Binding ElementName=EquipementComboBox, Path=Text}"/>
+
                 </StackPanel>
-                <StackPanel Orientation="Horizontal">
-                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                        <Label Margin="0,0,0,0">
-                            Phase [EF name Filter]:
-                        </Label>
-                        <TextBox x:Name="Eventname" Width="200" Height="25" Margin="0,0,10,0"/>
+                <StackPanel Margin="10,0,10,0">
+                    <StackPanel Orientation="Horizontal" >
+                        <Label Content="Element [Name Filter]:"/>
+                        <!--   <TextBox x:Name="Elementname" Width="200" Margin="1,0,10,0" Tag="fef"  Text="{Binding ElementName=EquipementComboBox, Path=Text}"/>  -->
+                        <ComboBox x:Name="EquipementComboBox0"
+                                  SelectedIndex="0"
+                                  Margin="0,0,0,5"
+                                  IsEditable="True"
+                                  Width="437"
+                                  StaysOpenOnEdit="True"
+                                  IsTextSearchEnabled="True"
+                                  SelectionChanged="EquipementComboBox0_SelectionChanged" />
+
+
                     </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
+                            <Label Margin="0,0,0,0">
+                                Phase [EF name Filter]:
+                            </Label>
+                            <TextBox x:Name="Eventname" Width="200" Height="25" Margin="0,0,10,0"/>
+                        </StackPanel>
 
-                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <!--<StackPanel Orientation="Horizontal" Margin="0,10,0,0">
 
-                       
+
                         <Label Margin="0,0,0,0">
                             Batch ID [Filter]:
                         </Label>
                         <TextBox x:Name="BatchID" Width="200" Height="25" Margin="0,0,0,0"/>
+                    </StackPanel>-->
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,0" VerticalAlignment="Center">
+                        <Label Content="Time Frame:" />
+                        <Label Content="From:" FontStyle="Italic" Margin="15,0,0,0"/>
+
+                        <DatePicker x:Name="StartDatePicker" Width="200" SelectedDate="{Binding Date, StringFormat=dd/MM/yyyy}"/>
+                        <Label Content="To:" FontStyle="Italic" Margin="10,0,0,0"/>
+                        <DatePicker x:Name="EndDatePicker" Width="200"/>
                     </StackPanel>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">
-                    <Label Content="Search Time Frame:" />
-                    <Label Content="From:" FontStyle="Italic" Margin="5,0,0,0"/>
-                    <DatePicker x:Name="StartDatePicker" Width="150"/>
-                    <Label Content="To:" FontStyle="Italic" Margin="10,0,0,0"/>
-                    <DatePicker x:Name="EndDatePicker" Width="150"/>
-                </StackPanel>
-            </StackPanel>
-          
-           
-            <Button Content="Search" Width="75" Margin="0,10,0,0" Click="Search_Click" Style="{StaticResource ButtonStyle}"/>
 
 
-            <StackPanel Margin="10">
-                <!-- Filter box -->
-                <StackPanel Orientation="Horizontal">
-                    <Label Content="EF search filter:"/>
-                    <TextBox x:Name="BatchFilterBox" 
+                <Button Content="Search" Width="75" Margin="0,10,0,0" Click="Search_Click" Style="{StaticResource ButtonStyle}"/>
+
+
+                <StackPanel Margin="10,0,10,0">
+                    <!-- Filter box -->
+                    <StackPanel Orientation="Horizontal" Margin="10,0,0,0">
+                        <Label Content="EF search filter:" Margin="-5,0,0,0"/>
+                        <TextBox x:Name="BatchFilterBox" 
                              Width="200" 
-                             Margin="0,0,0,0" 
+                             Margin="0,0,0,5" 
                             TextAlignment="Left"
                             HorizontalAlignment="Left"
                              TextChanged="BatchFilterBox_TextChanged"/>
-                    <Label x:Name="numberOfResults" FontStyle="Italic" HorizontalAlignment="Right"/>
-                </StackPanel>
-               
+                        <Label x:Name="numberOfResults" FontStyle="Italic" HorizontalAlignment="Right"/>
+                        <CheckBox x:Name="IncludeParentsCheckBox"
+                          Content="Show hierarchy"
+                          Margin="10,5,0,0"
+                          IsEnabled="False"
+                          Checked="IncludeParentsCheckBox_Changed"
+                          Unchecked="IncludeParentsCheckBox_Changed"/>
 
-                <!-- DataGrid -->
-                <DataGrid x:Name="EFDataGrid"
-          AutoGenerateColumns="False"
-          CanUserAddRows="False"
-          CanUserSortColumns="True"
-          IsReadOnly="False"
-          SelectionMode="Extended"
-          SelectionUnit="FullRow"
-          Margin="0,10,0,0"
-          Height="236"
-          ItemsSource="{Binding}">
-                    <DataGrid.Columns>
-                        <!-- Select column with header checkbox -->
-                        <DataGridTemplateColumn Width="50">
-                            <DataGridTemplateColumn.Header>
-                                <CheckBox Content="" 
+                    </StackPanel>
+
+
+
+                    <!-- DataGrid -->
+                    <DataGrid x:Name="EFDataGrid"
+              AutoGenerateColumns="False"
+              CanUserAddRows="False"
+              CanUserSortColumns="True"
+              IsReadOnly="False"
+              SelectionMode="Extended"
+              SelectionUnit="FullRow"
+              MinHeight="100"
+              Height="175"
+              ItemsSource="{Binding EventFrames}"
+              >
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Setter Property="Visibility" Value="{Binding Visibility}" />
+                            </Style>
+                        </DataGrid.RowStyle>
+
+                        <DataGrid.Columns>
+
+                            <!-- Select column with header checkbox -->
+                            <DataGridTemplateColumn Width="50">
+                                <DataGridTemplateColumn.Header>
+                                    <CheckBox Content="" 
                           Click="SelectAllCheckBox_Click"
                           VerticalAlignment="Center"
                           HorizontalAlignment="Center"/>
-                            </DataGridTemplateColumn.Header>
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                              HorizontalAlignment="Center"
-                              VerticalAlignment="Center"/>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
+                                </DataGridTemplateColumn.Header>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Unchecked="EFCheckbox_Unchecked"
+                                                  Checked="EFCheckbox_Checked"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
-                        <!-- Read-only text columns -->
-                        <DataGridTextColumn Binding="{Binding BatchId}" Header="Batch ID" Width="*" IsReadOnly="True"/>
-                        <DataGridTextColumn Binding="{Binding Name}" Header="EF Name" Width="*" IsReadOnly="True"/>
-
-                        <!-- Start Time -->
-                        <DataGridTextColumn Header="Start Time" Width="135" IsReadOnly="True">
-                            <DataGridTextColumn.Binding>
-                                <Binding Path="StartTime" StringFormat="{}{0:G}" />
-                            </DataGridTextColumn.Binding>
-                        </DataGridTextColumn>
-
-                        <!-- End Time -->
-                        <DataGridTextColumn Header="End Time" Width="135" IsReadOnly="True">
-                            <DataGridTextColumn.Binding>
-                                <Binding Path="EndTime" StringFormat="{}{0:G}" />
-                            </DataGridTextColumn.Binding>
-                        </DataGridTextColumn>
-                    </DataGrid.Columns>
-                </DataGrid>
-
-            </StackPanel>
+                            <!-- Read-only text columns -->
+                            <!--  <DataGridTextColumn Binding="{Binding BatchId}" Header="Batch ID" Width="*" IsReadOnly="True"/> 
+                            <DataGridTextColumn Binding="{Binding Name}" Header="EF Name" Width="*" IsReadOnly="True"/>  -->
 
 
+                            <DataGridTemplateColumn Header="EF Name" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Margin="{Binding Indent}" >
 
-          
+                                            <!-- Expand/Collapse Button (no converter!) -->
+                                            <Button Content="{Binding ExpandSymbol}"
+                                        Width="18" Height="18"
+                                        Padding="0"
+                                        Visibility="{Binding HasChildrenVisibility}" 
+                                        Click="ExpandCollapse_Click"/>
 
-            <StackPanel Margin="10">
-                <!-- Filter box -->
-                <StackPanel Orientation="Horizontal">
-                    <Label Content="{Binding ElementName=EquipementComboBox,Path=Text}"/>
-                    <Label Content="attributes (PI Tags only) search:" Margin="-5,0,0,0"/>
-                    <TextBox x:Name="AttrFilterBox"
+
+                                            <TextBlock Text="{Binding Name}" Margin="5,0,0,0"/>
+
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+
+
+                            <DataGridTextColumn Binding="{Binding PrimaryElement}" Header="Equipment" Width="*" IsReadOnly="True" MaxWidth="100"/>
+
+
+
+
+                            <!-- Start Time -->
+                            <DataGridTextColumn Header="Start Time" Width="135" IsReadOnly="True">
+                                <DataGridTextColumn.Binding>
+                                    <Binding Path="StartTime" StringFormat="{}{0:G}" />
+                                </DataGridTextColumn.Binding>
+                            </DataGridTextColumn>
+
+                            <!-- End Time -->
+                            <DataGridTextColumn Header="End Time" Width="135" IsReadOnly="True">
+                                <DataGridTextColumn.Binding>
+                                    <Binding Path="EndTime" StringFormat="{}{0:G}" />
+                                </DataGridTextColumn.Binding>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                </StackPanel>
+
+                <Expander Header="Event Frame attribute selection"
+                      IsExpanded="false"
+                      Margin="10,0,10,0">
+                    <DataGrid x:Name="EFAttrDataGrid"
+          AutoGenerateColumns="False"
+          CanUserAddRows="False"
+          IsReadOnly="False"
+          SelectionMode="Extended"
+          SelectionUnit="FullRow"
+          Margin="0,0,0,0"
+          VerticalScrollBarVisibility="Auto"
+          Height="147">
+
+                        <DataGrid.Columns>
+
+                            <!-- Checkbox with header -->
+                            <DataGridTemplateColumn Width="50">
+                                <DataGridTemplateColumn.Header>
+                                    <CheckBox x:Name="SelectAllCheckBox_EFAttr"
+                                              Content=""
+                                              Click="SelectAllCheckBox_EFAttr_Click"/>
+                                </DataGridTemplateColumn.Header>
+
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!-- Attribute Name -->
+                            <DataGridTextColumn Binding="{Binding Name}" Header="EF Attribute" Width="*"/>
+
+                            <!-- EF Name -->
+                            <DataGridTextColumn Binding="{Binding EFName}" Header="Event Frame" Width="*"/>
+
+                            <!-- Category -->
+                            <DataGridTextColumn Binding="{Binding Category}" Header="Category" Width="100"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                </Expander>
+
+                <Expander Header="Element Attribute selection"
+              IsExpanded="false"
+              Margin="10,0,10,0">
+
+                    <StackPanel Margin="0,0,0,0">
+                        <!-- Filter box -->
+                        <StackPanel Orientation="Horizontal">
+                            <!--<ComboBox x:Name="EquipementComboBox"
+                            SelectedIndex="0"
+                            Margin="0,0,0,5"
+                           IsEditable="False"
+                           StaysOpenOnEdit="True"
+                           IsTextSearchEnabled="True"
+                           Width="300"
+                            SelectionChanged="EquipementComboBox_SelectionChanged"/>-->
+                            <Label Content="{Binding ElementName=EquipementComboBox0,Path=Text}" FontWeight="Bold"/>
+                            <Label Content="attributes (PI Tags only) search:" Margin="-5,0,0,0"/>
+                            <TextBox x:Name="AttrFilterBox"
                              Width="200"
                              Margin="0,0,0,5"
                             HorizontalAlignment="Left"
                              TextChanged="AttrFilterBox_TextChanged"/>
-                </StackPanel>
-                
+                        </StackPanel>
 
-                <DataGrid x:Name="EFAttrDataGrid"
-              AutoGenerateColumns="False"
-              CanUserAddRows="False"
-              IsReadOnly="False"
-              SelectionMode="Extended"
-              SelectionUnit="FullRow"
-              Margin="0,10,0,0"
-              Height="252">
-                    <DataGrid.Columns>
-                        <!-- Checkbox with header -->
-                        <DataGridTemplateColumn Width="50">
-                            <DataGridTemplateColumn.Header>
-                                <CheckBox x:Name="SelectAllCheckBox"
+
+                        <DataGrid x:Name="EltAttrDataGrid"
+                               AutoGenerateColumns="False"
+                               CanUserAddRows="False" 
+                               IsReadOnly="False"
+                               SelectionMode="Extended"
+                               SelectionUnit="FullRow"
+                               Margin="0,0,0,0"
+                               VerticalScrollBarVisibility="Auto"
+                               Height="147">
+                            <DataGrid.Columns>
+                                <!-- Checkbox with header -->
+                                <DataGridTemplateColumn Width="50">
+                                    <DataGridTemplateColumn.Header>
+                                        <CheckBox x:Name="SelectAllCheckBox"
                               Content=""
                               Click="SelectAllCheckBox_attr_Click"/>
-                            </DataGridTemplateColumn.Header>
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"  HorizontalAlignment="Center"/>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
+                                    </DataGridTemplateColumn.Header>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"  HorizontalAlignment="Center"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
 
-                        <!-- Attribute Name -->
-                        <DataGridTextColumn Binding="{Binding Name}" Header="Attribute Name" Width="*"/>
+                                <!-- Attribute Name -->
+                                <DataGridTextColumn Binding="{Binding Name}" Header="Attribute Name" Width="*"/>
 
-                        <!-- Tag Name -->
-                        <DataGridTextColumn Binding="{Binding TagName}" Header="PI Tag" Width="*"/>
+                                <!-- Element Name -->
+                                <DataGridTextColumn Binding="{Binding ElementName}" Header="Equipment" Width="*"/>
 
-                        <!-- Category -->
-                        <DataGridTextColumn Binding="{Binding Category}" Header="Category" Width="100"/>
-                    </DataGrid.Columns>
-                </DataGrid>
-            </StackPanel>
+                                <!-- Tag Name -->
+                                <DataGridTextColumn Binding="{Binding TagName}" Header="PI Tag" Width="*"/>
+
+                                <!-- Category -->
+                                <DataGridTextColumn Binding="{Binding Category}" Header="Category" Width="100"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
 
 
-          
-          
+                </Expander>
 
-            <StackPanel Orientation="Horizontal" Margin="10,10,0,0">
-                
-                <RadioButton x:Name="CompressedRadio" Content="Compressed" IsChecked="True" Margin="0,5,10,0"/>
-                <RadioButton x:Name="SampledRadio" Content="Sampled" Margin="0,5,0,0"/>
-                
 
-                <TextBox x:Name="SampleIntervalBox"
+                <StackPanel Orientation="Horizontal" Margin="10,0,0,0">
+
+                    <!--<RadioButton x:Name="CompressedRadio" Content="Compressed" IsChecked="True" Margin="0,5,10,0"/>-->
+                    <!--<RadioButton IsChecked="True" x:Name="SampledRadio" Content="Sampled" Margin="0,5,0,0"/>-->
+                    <Label Content="Sampling Interval:" FontStyle="Italic"/>
+
+
+                    <!--<TextBox x:Name="SampleIntervalBox"
          Width="55"
                          Height="20"
          Margin="5,2,0,0"
          PreviewTextInput="SampleIntervalBox_PreviewTextInput"
          LostFocus="SampleIntervalBox_LostFocus"
          ToolTip="Enter duration in format hh:mm:ss"
-         Text="hh:mm:ss"                />
+         Text="hh:mm:ss"                />-->
+
+
+                    <xctk:TimePicker 
+   x:Name="SampleIntervalPicker"
+      Format="Custom"
+    FormatString="HH:mm:ss"
+   Value="00:05:00"
+   Width="90"
+   Margin="5,2,0,0"
+   ToolTip="Select sample interval" />
+                </StackPanel>
+                    <!-- Export button -->
+                <StackPanel Margin="0,10,0,10" Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Button Content="Export to csv" Width="90" Margin="0,0,5,0" Click="Export_Click" Style="{StaticResource ButtonStyle}"/>
+                    <Button Content="Export to Excel" Width="90" Margin="5,0,0,0" Click="Export_Click_Excel" Style="{StaticResource ButtonStyle}"/>
+                </StackPanel>
+
             </StackPanel>
-           
-            <!-- Export button -->
-            <Button Content="Export" Width="75" Margin="0,10,0,0" Click="Export_Click" Style="{StaticResource ButtonStyle}"/>
-        </StackPanel>
 
-
-
+        </ScrollViewer>
 
     </Grid>
-   
+
 </Window>

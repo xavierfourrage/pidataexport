@@ -28,6 +28,12 @@ using System.Collections.ObjectModel;
 using System.Threading;
 using OSIsoft.AF.Data;
 using System.IO;
+using System.Globalization;
+using OSIsoft.AF.Analysis;
+using Newtonsoft.Json;
+using OfficeOpenXml;
+using OfficeOpenXml.Style;
+using System.Drawing;
 
 namespace pidataexport
 {
@@ -44,16 +50,23 @@ namespace pidataexport
         private ObservableCollection<AttributeRow> _attributeRows = new ObservableCollection<AttributeRow>();
         private ICollectionView _attrCollectionView;
 
+        private readonly ObservableCollection<EFAttributeRow> _efAttributeRows = new ObservableCollection<EFAttributeRow>();
+        private ICollectionView _efAttrCollectionView;
+
+
         private PIServer _piServer;
         public PISystem _piSystem;
         public MainWindow()
         {
             InitializeComponent();
-
+            
             AFDatabaseComboBox.Items.Clear();
 
-            ConnectToPI();
-            LoadAFDatabases();
+            /*if (LoadRememberedSettings())
+            {
+                ConnectToPI();
+                LoadAFDatabases();             
+            };*/
 
 
             _eventFrameRows = new ObservableCollection<EventFrameRow>();
@@ -65,31 +78,119 @@ namespace pidataexport
 
             this.DataContext = this;
         }
+        private bool LoadRememberedSettings()
+        {
+            try
+            {
+                string folder = GetConfigFolder();
+                string file = System.IO.Path.Combine(folder, "connection_settings.json");
+
+                if (!File.Exists(file))
+                    return false;
+
+                // Read + parse JSON
+                var json = File.ReadAllText(file);
+                var settings = JsonConvert.DeserializeObject<ConnectionSettings>(json);
+
+                if (settings == null)
+                    return false;
+
+                // PI Server lookup
+                _piServer = PIServer.FindPIServer(settings.PIServer);
+
+                // AF Server lookup
+                var piSystems = new PISystems();
+                _piSystem = piSystems[settings.AFServer];
+            
+                return _piSystem != null;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error reading connection_settings.json: {ex.Message}");
+                return false;
+            }
+        }
+
+        private string GetConfigFolder()
+        {
+            string exeFolder = System.IO.Path.GetDirectoryName(
+                System.Reflection.Assembly.GetExecutingAssembly().Location
+            );
+
+            string configFolder = System.IO.Path.Combine(exeFolder, "config");
+            Directory.CreateDirectory(configFolder);
+
+            return configFolder;
+        }
+
         private void OpenConnectionHelper_Click(object sender, RoutedEventArgs e)
         {
-            var win = new ConnectionHelperWindow();
+            var win = new ConnectionHelperWindow 
+            { 
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
             win.Owner = this;
             win.ShowDialog();   // modal, use .Show() if you want non-modal
         }
 
-        private void ConnectToPI()
+        /* private void ConnectToPI()
+         {
+             try
+             {
+                 _piSystem = new PISystems().DefaultPISystem;
+                 _piSystem.Connect();
+
+
+                 _piServer = new PIServers().DefaultPIServer;
+                 _piServer.Connect();
+
+                 AFServer.Content = _piSystem.Name;
+                 PIDAServer.Content = _piServer.Name;
+             }
+             catch (Exception ex)
+             {
+                 MessageBox.Show($"Error connecting to PI system: {ex.Message}");
+             }
+         }*/
+        private async void ConnectToPI()
         {
+            var win = new LoadingBox
+            {
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
+
             try
             {
-                _piSystem = new PISystems().DefaultPISystem;
-                _piSystem.Connect();
+                // Prepare UI BEFORE background work
+                win.ConnectionStatusText.Text = "Connecting to AF Server...";
+                win.Show();
 
-                _piServer = new PIServers().DefaultPIServer;
-                _piServer.Connect();
+
+                await Task.Run(() => _piSystem.Connect());
+               
+
+                win.ConnectionStatusText.Text = "Connecting to PI DA Server...";
+                
+
+                await Task.Run(() => _piServer.Connect());
+                win.Close();
 
                 AFServer.Content = _piSystem.Name;
-                PIDAServer.Content=_piServer.Name;
+                PIDAServer.Content = _piServer.Name;
+
+                
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error connecting to PI system: {ex.Message}");
             }
+            finally
+            {
+                win.Close();
+            }
         }
+
+
         public void LoadAFDatabases()
         {
             try
@@ -131,37 +232,67 @@ namespace pidataexport
                         500);
 
                     // Clear old items before adding new ones
-                    EquipementComboBox.Items.Clear();
+                   /* EquipementComboBox.Items.Clear();*/
+                    EquipementComboBox0.Items.Clear();
 
                     if (aFElements.Count > 0)
                     {
                         foreach (AFElement aFElement in aFElements)
                         {
-                            EquipementComboBox.Items.Add(aFElement);
+                          /*  EquipementComboBox.Items.Add(aFElement);*/
+                            EquipementComboBox0.Items.Add(aFElement);
+                        }
+                        
+                    }
+                    // Ensure template is applied so PART_EditableTextBox exists (if editable)
+                    EquipementComboBox0.ApplyTemplate();
+                    var textBox = GetComboBoxTextBox(EquipementComboBox0); // your helper that does ApplyTemplate+FindName
+
+                    // Defer clearing so ComboBox internal logic finishes first
+                    EquipementComboBox0.Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        // clear displayed text
+                        if (textBox != null)
+                        {
+                            textBox.Text = string.Empty;
+                            textBox.CaretIndex = 0;
                         }
 
-                        // Optionally select the first element
-                        EquipementComboBox.SelectedIndex = 0;
-                    }
+                        EquipementComboBox0.Text = string.Empty;
+
+                        // clear selection to avoid the control resetting the text later
+                        EquipementComboBox0.SelectedItem = null;
+
+                        // ensure dropdown is closed
+                        EquipementComboBox0.IsDropDownOpen = false;
+
+                        // optional: clear your selection list(s) if you want a full reset
+                        // afElementList.Clear();
+                        // itemsList.Clear();
+                        _attributeRows.Clear();
+
+                    }), System.Windows.Threading.DispatcherPriority.Background);
                 }
             }
         }
      /*   private CancellationTokenSource _cts;*/
         private async void Search_Click(object sender, RoutedEventArgs e)
         {
+            _efAttributeRows.Clear();
             var button = sender as Button;
 
-            string eventName = $"*{Eventname.Text}*";
-            string elementname = Elementname.Text;
-            string batchID = BatchID.Text.ToLower();
+            string eventName = $"{Eventname.Text}";
+            string eltname = EquipementComboBox0.Text; 
+            /*string batchID = BatchID.Text.ToLower();*/
 
             AFDatabase aFDatabase = AFDatabaseComboBox.SelectedItem as AFDatabase;
 
 
-
-/*            _cts = new CancellationTokenSource();
-            var token = _cts.Token;*/
-
+            List<string> eltNameList = eltname
+                                .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                                .Select(s => s.Trim())
+                                .ToList();
+           
             try
             {
                 button.Content = "Loading...";
@@ -172,75 +303,132 @@ namespace pidataexport
                 var starttime = StartDatePicker.SelectedDate;
                 var endtime = EndDatePicker.SelectedDate;
 
-                var eventFrames =AFEventFrame.FindEventFrames(
-                        database: aFDatabase,
-                        searchRoot: null,
-                        searchMode: AFSearchMode.Overlapped,
-                        startTime: new AFTime(starttime),
-                        endTime: new AFTime(endtime),
-                        nameFilter: eventName,
-                        referencedElementNameFilter: elementname,
-                        eventFrameCategory: null,
-                        eventFrameTemplate: null,
-                        referencedElementTemplate: null,
-                        durationQuery: null,
-                        searchFullHierarchy: true,
-                        sortField: AFSortField.Name,
-                        sortOrder: AFSortOrder.Ascending,
-                        startIndex: 0,
-                        maxCount: 1000
-                    );
-                
+                // -----------------------------
+                //    VALIDATE DATE RANGE
+                // -----------------------------
+                if (!starttime.HasValue || !endtime.HasValue)
+                {
+                    MessageBox.Show("Please select both a start date and an end date.",
+                                     "Missing Dates",
+                                     MessageBoxButton.OK,
+                                     MessageBoxImage.Warning);
+                    return;   // Exit early ⇒ finally block restores the button UI
+                }
 
-                /*                numberOfResults.Content = "Results exceed the search limit (1000)";*/
+                if (starttime > endtime)
+                {
+                    MessageBox.Show("The start date cannot be later than the end date.",
+                                     "Invalid Date Range",
+                                     MessageBoxButton.OK,
+                                     MessageBoxImage.Warning);
+                    return;   // Exit early
+                }
+
 
                 _eventFrameRows.Clear();
-
                 int count = 0;
-
-                await Task.Run(async () => {
-                    foreach (var eventFrame in eventFrames)
+                if (eltNameList.Count > 0)
+                {
+                    foreach (string elementname in eltNameList)
                     {
-                        AFAttribute batchAttr = null;
-                        foreach (AFAttribute a in eventFrame.Attributes)
+                        /*------------Method 2 (prefered)------------*/
+                        IEnumerable<AFEventFrame> eventFrames = Enumerable.Empty<AFEventFrame>();
+                        string queryString = $"name:\"{eventName}\" ElementName:\"{elementname}\"";
+                        using (AFEventFrameSearch eventFrameSearch =
+                             new AFEventFrameSearch(aFDatabase, "EFSearch", AFSearchMode.Inclusive, new AFTime(starttime), new AFTime(endtime), queryString))
                         {
-                            if (a.Name.IndexOf("batchid", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                a.Name.IndexOf("batch id", StringComparison.OrdinalIgnoreCase) >= 0)
-                            {
-                                batchAttr = a;
-                                break;
-                            }
-                        }
+                            eventFrameSearch.CacheTimeout = TimeSpan.FromMinutes(5);
 
-                        if (batchAttr != null)
-                        {
-                            string attVal = batchAttr.GetValue()?.ToString();
+                            // Materialize result set once
+                            var found = eventFrameSearch.FindObjects(fullLoad: false).Cast<AFEventFrame>().ToList();
 
-                            if (string.IsNullOrEmpty(batchID) || attVal.ToLower().Contains(batchID))
+                            numberOfResults.Content = $"number of results: {found.Count}";
+
+                            foreach (var eventFrame in found)
                             {
-                                count++;
-                                // marshal back to UI thread
-                                await Dispatcher.InvokeAsync(() =>
-                                {
-                                    _eventFrameRows.Add(new EventFrameRow
-                                    {
-                                        BatchId = attVal,
-                                        Name = eventFrame.Name,
-                                        StartTime = eventFrame.StartTime,
-                                        EndTime = eventFrame.EndTime,
-                                        IsSelected = false
-                                    });
-                                   
-                                    if (eventFrames.Count == 1000)
-                                        numberOfResults.Content = "Results exceed the search limit (1000)";
-                                    else
-                                        numberOfResults.Content = $"number of results: {count}"; ;
-                                });
+                                // Recursively add event frame + all its hierarchy
+                                AddEventFrameRecursive(eventFrame, 0);
                             }
                         }
                     }
-                   
-                });
+                }
+                else
+                {
+                    /*------------Method 2 (prefered)------------*/
+                    IEnumerable<AFEventFrame> eventFrames = Enumerable.Empty<AFEventFrame>();
+                    string queryString = $"name:\"{eventName}\"";
+                    using (AFEventFrameSearch eventFrameSearch =
+                            new AFEventFrameSearch(aFDatabase, "EFSearch", AFSearchMode.Inclusive, new AFTime(starttime), new AFTime(endtime), queryString))
+                    {
+                        eventFrameSearch.CacheTimeout = TimeSpan.FromMinutes(5);
+
+                        // Materialize result set once
+                        var found = eventFrameSearch.FindObjects(fullLoad: false).Cast<AFEventFrame>().ToList();
+
+                        numberOfResults.Content = $"number of results: {found.Count}";
+
+                        foreach (var eventFrame in found)
+                        {
+                            // Recursively add event frame + all its hierarchy
+                            AddEventFrameRecursive(eventFrame, 0);
+                        }
+                    }
+
+                }
+
+
+
+                /*------------------------*/
+                /*                numberOfResults.Content = "Results exceed the search limit (1000)";*/
+
+                /* _eventFrameRows.Clear();*/
+
+                /* int count = 0;*/
+
+                /*   await Task.Run(async () =>
+                   {
+                       foreach (var eventFrame in eventFrames)
+                       {
+                           AFAttribute batchAttr = null;
+                           foreach (AFAttribute a in eventFrame.Attributes)
+                           {
+                               if (a.Name.IndexOf("batchid", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                   a.Name.IndexOf("batch id", StringComparison.OrdinalIgnoreCase) >= 0)
+                               {
+                                   batchAttr = a;
+                                   break;
+                               }
+                           }
+
+                           if (batchAttr != null)
+                           {
+                               string attVal = batchAttr.GetValue()?.ToString();
+
+                               if (string.IsNullOrEmpty(batchID) || attVal.ToLower().Contains(batchID))
+                               {
+                                   count++;
+                                   // marshal back to UI thread
+                                   await Dispatcher.InvokeAsync(() =>
+                                   {
+                                       _eventFrameRows.Add(new EventFrameRow
+                                       {
+                                           BatchId = attVal,
+                                           Name = eventFrame.Name,
+                                           StartTime = eventFrame.StartTime,
+                                           EndTime = eventFrame.EndTime,
+                                           IsSelected = false
+                                       });
+                                       
+                                           if (eventFrames.ToList().Count == 1000)
+                                               numberOfResults.Content = "Results exceed the search limit (1000)";
+                                           else
+                                               numberOfResults.Content = $"number of results: {count}"; ;
+                                   });
+                               }
+                           }
+                       }
+
+                   });*/
 
             }
             catch (OperationCanceledException)
@@ -253,12 +441,122 @@ namespace pidataexport
                 button.IsEnabled = true;
             }
         }
+        private void AddEventFrameRecursive(AFEventFrame eventFrame, int level)
+        {
+            bool hasChildren = eventFrame.HasChildEventFrames;
+
+            // Safe Primary Element (avoid null reference)
+            string primaryElementName = "";
+            if (eventFrame.PrimaryReferencedElement != null)
+                primaryElementName = eventFrame.PrimaryReferencedElement.Name ?? "";
+
+            var row = new EventFrameRow
+            {
+                Name = eventFrame.Name,
+                PrimaryElement = primaryElementName,  // ← safe assignment
+                StartTime = eventFrame.StartTime.LocalTime,
+                EndTime = eventFrame.EndTime.LocalTime,
+                IsSelected = false,
+                Level = level,
+                HasChildren = hasChildren,
+                HasChildrenVisibility = hasChildren ? Visibility.Visible : Visibility.Hidden,
+                AFEventFrame = eventFrame,
+                Indent = new Thickness(level * 20, 0, 0, 0)
+            };
+
+            _eventFrameRows.Add(row);
+
+            // Children
+            if (hasChildren)
+            {
+                foreach (AFEventFrame child in eventFrame.EventFrames)
+                    AddEventFrameRecursive(child, level + 1);
+            }
+        }
+
+
+
         /*        private void AbortSearch_Click(object sender, RoutedEventArgs e)
                 {
                     _cts?.Cancel();
                 }*/
+        /*  private void AddEventFrameRecursive(AFEventFrame eventFrame, string batchId)
+          {
+              // Add the current event frame
+              _eventFrameRows.Add(new EventFrameRow
+              {
+                  BatchId = batchId,
+                  Name = eventFrame.Name,
+                  StartTime = eventFrame.StartTime,
+                  EndTime = eventFrame.EndTime,
+                  IsSelected = false
+              });
+
+              // If it has children, recurse into them
+              if (eventFrame.HasChildEventFrames)
+              {
+                  foreach (AFEventFrame child in eventFrame.EventFrames)
+                  {
+                      AddEventFrameRecursive(child, "child");
+                  }
+              }
+          }*/
+        private void ExpandCollapse_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.DataContext is EventFrameRow row)
+            {
+                row.IsExpanded = !row.IsExpanded;
+                ApplyVisibility(row);
+            }
+        }
+
+        private void ApplyVisibility(EventFrameRow parent)
+        {
+            int parentIndex = _eventFrameRows.IndexOf(parent);
+
+            for (int i = parentIndex + 1; i < _eventFrameRows.Count; i++)
+            {
+                var child = _eventFrameRows[i];
+
+                if (child.Level <= parent.Level)
+                    break;
+
+                // Show/hide based on parent
+                child.Visibility = parent.IsExpanded ? Visibility.Visible : Visibility.Collapsed;
+
+                // If parent collapsed → collapse all descendants immediately
+                if (!parent.IsExpanded)
+                    child.IsExpanded = false;
+            }
+        }
+
         private async void Export_Click(object sender, RoutedEventArgs e)
         {
+            var button = sender as Button;
+
+            // --- Validate sample interval ---
+            if (!TimeSpan.TryParse(SampleIntervalPicker.Text, out var sampleInterval))
+            {
+                MessageBox.Show("Invalid interval format. Use hh:mm:ss.");
+                return;
+            }
+
+            // --- Selected rows ---
+            var selectedFrames = _eventFrameRows.Where(r => r.IsSelected).ToList();
+            var selectedAttributes = _attributeRows.Where(a => a.IsSelected).ToList();
+            var selectedEFAttributes = _efAttributeRows.Where(a => a.IsSelected).ToList();
+
+            if (!selectedFrames.Any())
+            {
+                MessageBox.Show("Please select at least one Event Frame.");
+                return;
+            }
+            if (!selectedAttributes.Any())
+            {
+                MessageBox.Show("Please select at least one tag attribute.");
+                return;
+            }
+
             var saveDialog = new Microsoft.Win32.SaveFileDialog
             {
                 Filter = "CSV files (*.csv)|*.csv",
@@ -267,199 +565,305 @@ namespace pidataexport
             if (saveDialog.ShowDialog() != true) return;
 
             string filePath = saveDialog.FileName;
-
-            bool isCompressed = false;
-            TimeSpan? sampleInterval = null;
-            if (!isCompressed)
-            {
-                if (!TimeSpan.TryParse(SampleIntervalBox.Text, out var parsed))
-                {
-                    MessageBox.Show("Invalid interval format. Use hh:mm:ss.");
-                    return;
-                }
-                sampleInterval = parsed;
-            }
-
-            var selectedFrames = _eventFrameRows.Where(r => r.IsSelected).ToList();
-            var selectedAttributes = _attributeRows.Where(a => a.IsSelected).ToList();
-
-            if (!selectedFrames.Any() || !selectedAttributes.Any())
-            {
-                MessageBox.Show("Please select at least one event frame and one attribute.");
-                return;
-            }
-
             try
             {
+                if (button != null)
+                {
+                    button.Content = "Loading...";
+                    button.IsEnabled = false;
+                }
                 await Task.Run(() =>
                 {
+                    // ============================================================
+                    // PREVENT CRASH IF FILE IS OPEN (locked by Excel or another app)
+                    // ============================================================
+
+                    if (File.Exists(filePath) && IsFileLocked(filePath))
+                    {
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            MessageBox.Show(
+                                "The selected file is currently open.\nPlease close it and try again.",
+                                "File In Use",
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Warning
+                            );
+                        });
+                        return; // abort cleanly
+                    }
+
                     using (var writer = new StreamWriter(filePath, false, Encoding.UTF8, 65536))
                     {
-                        // ---------- Header ----------
-                        var header = new List<string>(selectedFrames.Count * (isCompressed ? selectedAttributes.Count * 2 : (selectedAttributes.Count + 1)));
-                        foreach (var frame in selectedFrames)
-                        {
-                            string batchId = frame.BatchId ?? frame.Name;
 
-                            if (isCompressed)
-                            {
-                                // One timestamp per attribute
-                                foreach (var attr in selectedAttributes)
-                                {
-                                    header.Add($"{batchId}_{attr.Name}_Timestamp");
-                                    header.Add($"{batchId}_{attr.Name}");
-                                }
-                            }
-                            else
-                            {
-                                // One shared timestamp per frame
-                                header.Add($"{batchId}_Timestamp");
-                                foreach (var attr in selectedAttributes)
-                                    header.Add($"{batchId}_{attr.Name}");
-                            }
-                        }
+                        // ============================================================
+                        // 1. BUILD HEADER
+                        // ============================================================
+
+                        var header = new List<string>();
+
+                        header.Add("EventFrame");                     // Column A
+                        foreach (var efAttr in selectedEFAttributes)  // Columns B..?
+                            header.Add(efAttr.Name);
+
+                        header.Add("PrimaryElement");                 // Next column
+                        header.Add("Timestamp");                      // Next column
+
+                        // Then one column per selected tag attribute
+                        foreach (var attr in selectedAttributes)
+                            header.Add(attr.Name);
+
                         writer.WriteLine(string.Join(",", header));
 
-                        // Cache PIPoints per tag (reuse across frames)
-                        var piPointByTag = selectedAttributes
+                        // ============================================================
+                        // 2. PREPARE PIPOINT CACHE (avoid repeated lookups)
+                        // ============================================================
+
+                        var invalidAttributes = new List<string>();
+
+                        var piPointCache = selectedAttributes
                             .GroupBy(a => a.TagName)
-                            .ToDictionary(g => g.Key, g => PIPoint.FindPIPoint(_piServer, g.Key));
-
-                        if (isCompressed)
-                        {
-                            // frame -> attrName -> AFValues (recorded)
-                            var valuesByFrameAttr = new Dictionary<string, Dictionary<string, AFValues>>();
-                            int globalMaxRows = 0;
-
-                            foreach (var frame in selectedFrames)
-                            {
-                                var range = new AFTimeRange(new AFTime(frame.StartTime), new AFTime(frame.EndTime));
-                                string fkey = frame.BatchId ?? frame.Name;
-                                var dict = new Dictionary<string, AFValues>();
-                                foreach (var attr in selectedAttributes)
+                            .ToDictionary(
+                                g => g.Key,
+                                g =>
                                 {
-                                    var pt = piPointByTag[attr.TagName];
-                                    var vals = pt.RecordedValues(range, AFBoundaryType.Inside, null, false);
-                                    dict[attr.Name] = vals;
-                                    if (vals.Count > globalMaxRows) globalMaxRows = vals.Count;
-                                }
-                                valuesByFrameAttr[fkey] = dict;
-                            }
-
-                            // Write rows: each row index i pulls the i-th item of EACH (frame, attr) series
-                            var sb = new StringBuilder(1 << 20);
-                            const int FLUSH_EVERY = 50000;
-                            int written = 0;
-
-                            for (int i = 0; i < globalMaxRows; i++)
-                            {
-                                var row = new List<string>(selectedFrames.Count * selectedAttributes.Count * 2);
-
-                                foreach (var frame in selectedFrames)
-                                {
-                                    string fkey = frame.BatchId ?? frame.Name;
-                                    var dict = valuesByFrameAttr[fkey];
-
-                                    foreach (var attr in selectedAttributes)
+                                    try
                                     {
-                                        var series = dict[attr.Name];
-                                        if (i < series.Count)
-                                        {
-                                            var v = series[i];
-                                            row.Add(v.Timestamp.LocalTime.ToString("yyyy-MM-dd HH:mm:ss"));
-                                            row.Add(v.Value?.ToString() ?? "");
-                                        }
-                                        else
-                                        {
-                                            row.Add("");
-                                            row.Add("");
-                                        }
+                                        // Attempt to resolve the tag
+                                        return PIPoint.FindPIPoint(_piServer, g.Key);
+                                    }
+                                    catch
+                                    {
+                                        // Tag is invalid — add to invalid list and return null
+                                        invalidAttributes.Add(g.Key);
+                                        return null;
                                     }
                                 }
+                            );
 
-                                sb.AppendLine(string.Join(",", row));
-                                if (++written % FLUSH_EVERY == 0)
-                                {
-                                    writer.Write(sb.ToString());
-                                    sb.Clear();
-                                }
-                            }
-                            if (sb.Length > 0) writer.Write(sb.ToString());
+                        // Remove invalid (null) entries from the dictionary
+                        piPointCache = piPointCache
+                            .Where(kvp => kvp.Value != null)
+                            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
+                        // Show popup if needed
+                        if (invalidAttributes.Any())
+                        {
+                            MessageBox.Show(
+                                "The following attribute tagnames could not be resolved:\n\n" +
+                                string.Join("\n", invalidAttributes),
+                                "Invalid PI Points",
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Warning
+                            );
                         }
-                        else
+
+
+                        // ============================================================
+                        // 3. EXPORT EACH EVENT FRAME
+                        // ============================================================
+
+                        var sb = new StringBuilder(1 << 20);
+                        const int FLUSH_EVERY = 50000;
+                        int written = 0;
+
+                        foreach (var efRow in selectedFrames)
                         {
-                            // SAMPLED: frame -> timestamps (from first attr) and frame -> attrName -> AFValues (interpolated)
-                            var timesByFrame = new Dictionary<string, List<AFTime>>();
-                            var valuesByFrameAttr = new Dictionary<string, Dictionary<string, AFValues>>();
-                            int globalMaxRows = 0;
+                            var ef = efRow.AFEventFrame;
+                            string efName = efRow.Name ?? ef.Name;
+                            string primaryElem = efRow.PrimaryElement ?? "";
 
-                            foreach (var frame in selectedFrames)
+                            // --- EF Time Range ---
+                            var range = new AFTimeRange(
+                                new AFTime(efRow.StartTime),
+                                new AFTime(efRow.EndTime)
+                            );
+
+                            // ========================================================
+                            // 3.a MASTER TIMESTAMP SERIES (using first attribute)
+                            // ========================================================
+
+                            var firstAttr = selectedAttributes[0];
+                            var firstPt = piPointCache[firstAttr.TagName];
+
+                            AFValues masterVals;
+                            try
                             {
-                                var range = new AFTimeRange(new AFTime(frame.StartTime), new AFTime(frame.EndTime));
-                                string fkey = frame.BatchId ?? frame.Name;
-
-                                // Master timestamps for this frame using the first selected attribute
-                                var firstPt = piPointByTag[selectedAttributes[0].TagName];
-                                var master = firstPt.InterpolatedValues(range, new AFTimeSpan(sampleInterval.Value), null, false);
-                                var tsList = master.Select(v => v.Timestamp).ToList();
-                                timesByFrame[fkey] = tsList;
-                                if (tsList.Count > globalMaxRows) globalMaxRows = tsList.Count;
-
-                                var dict = new Dictionary<string, AFValues>();
-                                foreach (var attr in selectedAttributes)
-                                {
-                                    var pt = piPointByTag[attr.TagName];
-                                    var vals = pt.InterpolatedValues(range, new AFTimeSpan(sampleInterval.Value), null, false);
-                                    dict[attr.Name] = vals; // should match length of master
-                                }
-                                valuesByFrameAttr[fkey] = dict;
+                                masterVals = firstPt.InterpolatedValues(
+                                    range,
+                                    new AFTimeSpan(sampleInterval),
+                                    null,
+                                    false
+                                );
+                            }
+                            catch
+                            {
+                                continue; // skip this EF
                             }
 
-                            // Write rows: row i contains, for each frame: timestamp[i], then value[i] for each attr
-                            var sb = new StringBuilder(1 << 20);
-                            const int FLUSH_EVERY = 50000;
-                            int written = 0;
+                            var timestamps = masterVals
+                                .Select(v => v.Timestamp.LocalTime)
+                                .ToList();
 
-                            for (int i = 0; i < globalMaxRows; i++)
+                            if (timestamps.Count == 0)
+                                continue;
+
+                            int N = timestamps.Count;
+
+                            // ========================================================
+                            // 3.b FETCH VALUES FOR ALL ATTRIBUTES (EACH CALLED ONCE)
+                            // ========================================================
+
+                            /* var valuesByAttr = new Dictionary<string, AFValues>(
+                                 StringComparer.OrdinalIgnoreCase
+                             );
+
+                             foreach (var attr in selectedAttributes)
+                             {
+                                 AFValues vals = null;
+
+                                 if (piPointCache.TryGetValue(attr.TagName, out PIPoint pt))
+                                 {
+                                     try
+                                     {
+                                         vals = pt.InterpolatedValues(
+                                             range,
+                                             new AFTimeSpan(sampleInterval),
+                                             null,
+                                             false
+                                         );
+                                     }
+                                     catch
+                                     {
+                                         vals = null;
+                                     }
+                                 }
+
+                                 valuesByAttr[attr.Name] = vals;
+                             }*/
+                            // NEW: handle duplicate attribute names
+                            // Step 1: count duplicates
+                            var attrNameCount = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                            foreach (var attr in selectedAttributes)
                             {
-                                var row = new List<string>(selectedFrames.Count * (1 + selectedAttributes.Count));
+                                if (!attrNameCount.ContainsKey(attr.Name))
+                                    attrNameCount[attr.Name] = 0;
+                                attrNameCount[attr.Name]++;
+                            }
 
-                                foreach (var frame in selectedFrames)
+                            // Step 2: build unique export names
+                            var exportNames = new Dictionary<AttributeRow, string>();
+                            foreach (var attr in selectedAttributes)
+                            {
+                                if (attrNameCount[attr.Name] > 1)
+                                    exportNames[attr] = $"{attr.Name}_{attr.ElementName}";
+                                else
+                                    exportNames[attr] = attr.Name;
+                            }
+
+                            // Step 3: fetch PI values using unique keys
+                            var valuesByUniqueName = new Dictionary<string, AFValues>(StringComparer.OrdinalIgnoreCase);
+
+                            foreach (var attr in selectedAttributes)
+                            {
+                                string key = exportNames[attr];
+                                AFValues vals = null;
+
+                                if (piPointCache.TryGetValue(attr.TagName, out PIPoint pt))
                                 {
-                                    string fkey = frame.BatchId ?? frame.Name;
-                                    var tsList = timesByFrame[fkey];
-
-                                    if (i < tsList.Count)
+                                    try
                                     {
-                                        var tsStr = tsList[i].LocalTime.ToString("yyyy-MM-dd HH:mm:ss");
-                                        row.Add(tsStr);
-
-                                        foreach (var attr in selectedAttributes)
-                                        {
-                                            var series = valuesByFrameAttr[fkey][attr.Name];
-                                            if (i < series.Count)
-                                                row.Add(series[i].Value?.ToString() ?? "");
-                                            else
-                                                row.Add("");
-                                        }
+                                        vals = pt.InterpolatedValues(
+                                            range,
+                                            new AFTimeSpan(sampleInterval),
+                                            null,
+                                            false
+                                        );
                                     }
+                                    catch
+                                    {
+                                        vals = null;
+                                    }
+                                }
+
+                                valuesByUniqueName[key] = vals;
+                            }
+
+
+                            // ========================================================
+                            // 3.c GET STATIC EF ATTRIBUTE VALUES (ONE-TIME)
+                            // ========================================================
+
+                            var staticValues = new Dictionary<string, string>();
+
+                            foreach (var efAttr in selectedEFAttributes)
+                            {
+                                try
+                                {
+                                    var val = ef.Attributes[efAttr.Name]?.GetValue()?.Value;
+                                    staticValues[efAttr.Name] = val?.ToString() ?? "";
+                                }
+                                catch
+                                {
+                                    staticValues[efAttr.Name] = "";
+                                }
+                            }
+
+                            // ========================================================
+                            // 3.d WRITE DATA ROWS
+                            // ========================================================
+
+                            for (int i = 0; i < N; i++)
+                            {
+                                var row = new List<string>();
+
+                                // EventFrame name
+                                row.Add(CsvSafe(efName));
+
+                                // Static EF attributes
+                                foreach (var efAttr in selectedEFAttributes)
+                                    row.Add(CsvSafe(staticValues[efAttr.Name]));
+
+                                // Primary element
+                                row.Add(CsvSafe(primaryElem));
+
+                                // Timestamp
+                                row.Add(timestamps[i].ToString("yyyy-MM-dd HH:mm:ss"));
+
+                                // Time-series values
+                                /*                                foreach (var attr in selectedAttributes)
+                                                                {
+                                                                    var vals = valuesByAttr[attr.Name];
+                                                                    if (vals != null && i < vals.Count)
+                                                                        row.Add(CsvSafe(vals[i].Value?.ToString() ?? ""));
+                                                                    else
+                                                                        row.Add("");
+                                                                }*/
+                                // NEW
+                                foreach (var attr in selectedAttributes)
+                                {
+                                    string key = exportNames[attr];
+                                    var vals = valuesByUniqueName[key];
+
+                                    if (vals != null && i < vals.Count)
+                                        row.Add(CsvSafe(vals[i].Value?.ToString() ?? ""));
                                     else
-                                    {
-                                        // pad empty block for this frame
-                                        row.Add(""); // timestamp
-                                        for (int c = 0; c < selectedAttributes.Count; c++) row.Add("");
-                                    }
+                                        row.Add("");
                                 }
 
+
                                 sb.AppendLine(string.Join(",", row));
+
                                 if (++written % FLUSH_EVERY == 0)
                                 {
                                     writer.Write(sb.ToString());
                                     sb.Clear();
                                 }
                             }
-                            if (sb.Length > 0) writer.Write(sb.ToString());
                         }
+
+                        // Flush remainder
+                        if (sb.Length > 0)
+                            writer.Write(sb.ToString());
                     }
                 });
 
@@ -469,9 +873,369 @@ namespace pidataexport
             {
                 MessageBox.Show($"Export failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+            finally
+            {
+                // Restore button state
+                if (button != null)
+                {
+                    button.Content = "Export to csv";
+                    button.IsEnabled = true;
+                }
+            }
         }
 
 
+        // Escapes commas and quotes if needed
+        private string CsvSafe(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "";
+            if (s.Contains(",") || s.Contains("\""))
+                return "\"" + s.Replace("\"", "\"\"") + "\"";
+            return s;
+        }
+
+
+
+        private void SelectAllCheckBox_EFAttr_Click(object sender, RoutedEventArgs e)
+        {
+            bool newVal = (SelectAllCheckBox_EFAttr.IsChecked == true);
+
+            foreach (var row in _efAttributeRows)
+            {
+                row.IsSelected = newVal;
+            }
+        }
+
+        private async void Export_Click_Excel(object sender, RoutedEventArgs e)
+        {
+            var button = sender as Button;
+
+            // ============================================================
+            // 0. Validate sampling interval
+            // ============================================================
+            if (!TimeSpan.TryParse(SampleIntervalPicker.Text, out var sampleInterval))
+            {
+                MessageBox.Show("Invalid interval format. Use hh:mm:ss.");
+                return;
+            }
+
+            var selectedFrames = _eventFrameRows.Where(r => r.IsSelected).ToList();
+            var selectedAttributes = _attributeRows.Where(a => a.IsSelected).ToList();
+            var selectedEFAttributes = _efAttributeRows.Where(a => a.IsSelected).ToList();
+
+            if (!selectedFrames.Any())
+            {
+                MessageBox.Show("Please select at least one Event Frame.");
+                return;
+            }
+            if (!selectedAttributes.Any())
+            {
+                MessageBox.Show("Please select at least one tag attribute.");
+                return;
+            }
+
+            // ============================================================
+            // 1. Ask user for XLSX output file
+            // ============================================================
+            var saveDialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "Excel Workbook (*.xlsx)|*.xlsx",
+                FileName = "Export.xlsx"
+            };
+            if (saveDialog.ShowDialog() != true) return;
+
+            string filePath = saveDialog.FileName;
+
+            try
+            {
+                if (button != null)
+                {
+                    button.Content = "Loading...";
+                    button.IsEnabled = false;
+                }
+
+                ExcelPackage.License.SetNonCommercialPersonal("GSK");
+
+                await Task.Run(() =>
+                {
+                    using (var package = new ExcelPackage())
+                    {
+                        var ws = package.Workbook.Worksheets.Add("Data");
+
+                        int row = 1;
+                        int col = 1;
+
+                        // ============================================================
+                        // (A) BUILD UNIQUE COLUMN KEYS FOR ATTRIBUTES
+                        // ============================================================
+                        var nameGroups = selectedAttributes
+                            .GroupBy(a => a.Name)
+                            .ToDictionary(g => g.Key, g => g.Count());
+
+                        var attributeKeyMap = new Dictionary<object, string>();
+
+                        foreach (var attr in selectedAttributes)
+                        {
+                            string key = attr.Name ?? attr.TagName ?? "Attribute";
+
+                            if (nameGroups.TryGetValue(attr.Name, out int cnt) && cnt > 1)
+                            {
+                                string elementName;
+                                try { elementName = attr.ElementName; }
+                                catch { elementName = null; }
+
+                                if (string.IsNullOrWhiteSpace(elementName))
+                                    elementName = attr.TagName ?? "unknown";
+
+                                elementName = elementName.Replace(",", "_").Replace(" ", "_");
+
+                                key = $"{attr.Name}_{elementName}";
+                            }
+
+                            // Prevent extremely rare collisions
+                            string baseKey = key;
+                            int suffix = 1;
+                            while (attributeKeyMap.Values.Contains(key, StringComparer.OrdinalIgnoreCase))
+                                key = $"{baseKey}_{suffix++}";
+
+                            attributeKeyMap[attr] = key;
+                        }
+
+                        // ============================================================
+                        // 2. HEADER ROW
+                        // ============================================================
+                        ws.Cells[row, col++].Value = "EventFrame";
+
+                        foreach (var efAttr in selectedEFAttributes)
+                            ws.Cells[row, col++].Value = efAttr.Name;
+
+                        ws.Cells[row, col++].Value = "PrimaryElement";
+                        ws.Cells[row, col++].Value = "Timestamp";
+
+                        foreach (var attr in selectedAttributes)
+                            ws.Cells[row, col++].Value = attributeKeyMap[attr];
+
+                        // Style the header
+                        using (var rng = ws.Cells[1, 1, 1, col - 1])
+                        {
+                            rng.Style.Font.Bold = true;
+                            rng.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                            rng.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.FromArgb(242, 242, 242));
+                        }
+
+                        row++;
+
+                        // ============================================================
+                        // 3. Prepare PI Point Cache
+                        // ============================================================
+                        var invalidAttributes = new List<string>();
+
+                        var piPointCache = selectedAttributes
+                            .GroupBy(a => a.TagName)
+                            .ToDictionary(
+                                g => g.Key,
+                                g =>
+                                {
+                                    try { return PIPoint.FindPIPoint(_piServer, g.Key); }
+                                    catch
+                                    {
+                                        invalidAttributes.Add(g.Key);
+                                        return null;
+                                    }
+                                }
+                            );
+
+                        piPointCache = piPointCache
+                            .Where(kvp => kvp.Value != null)
+                            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
+                        if (invalidAttributes.Any())
+                        {
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                MessageBox.Show(
+                                    "The following attribute tagnames could not be resolved:\n\n" +
+                                    string.Join("\n", invalidAttributes),
+                                    "Invalid PI Points",
+                                    MessageBoxButton.OK,
+                                    MessageBoxImage.Warning
+                                );
+                            });
+                        }
+
+                        // ============================================================
+                        // 4. Process each Event Frame
+                        // ============================================================
+                        foreach (var efRow in selectedFrames)
+                        {
+                            var ef = efRow.AFEventFrame;
+                            string efName = efRow.Name ?? ef.Name;
+                            string primaryElem = efRow.PrimaryElement ?? "";
+
+                            var range = new AFTimeRange(
+                                new AFTime(efRow.StartTime),
+                                new AFTime(efRow.EndTime)
+                            );
+
+                            // --- Master timestamps from first selected attribute ---
+                            var firstAttr = selectedAttributes[0];
+                            var firstPt = piPointCache[firstAttr.TagName];
+
+                            AFValues masterVals;
+                            try
+                            {
+                                masterVals = firstPt.InterpolatedValues(
+                                    range,
+                                    new AFTimeSpan(sampleInterval),
+                                    null,
+                                    false
+                                );
+                            }
+                            catch
+                            {
+                                continue;
+                            }
+
+                            var timestamps = masterVals
+                                .Select(v => v.Timestamp.LocalTime)
+                                .ToList();
+
+                            if (timestamps.Count == 0)
+                                continue;
+
+                            int N = timestamps.Count;
+
+                            // --- Load values for all attributes using unique KEY ---
+                            var valuesByKey = new Dictionary<string, AFValues>(StringComparer.OrdinalIgnoreCase);
+
+                            foreach (var attr in selectedAttributes)
+                            {
+                                AFValues vals = null;
+
+                                if (piPointCache.TryGetValue(attr.TagName, out PIPoint pt))
+                                {
+                                    try
+                                    {
+                                        vals = pt.InterpolatedValues(
+                                            range,
+                                            new AFTimeSpan(sampleInterval),
+                                            null,
+                                            false
+                                        );
+                                    }
+                                    catch { vals = null; }
+                                }
+
+                                string key = attributeKeyMap[attr];
+                                valuesByKey[key] = vals;
+                            }
+
+                            // --- Load static EF attributes ---
+                            var staticValues = new Dictionary<string, string>();
+                            foreach (var efAttr in selectedEFAttributes)
+                            {
+                                try
+                                {
+                                    var v = ef.Attributes[efAttr.Name]?.GetValue()?.Value;
+                                    staticValues[efAttr.Name] = v?.ToString() ?? "";
+                                }
+                                catch
+                                {
+                                    staticValues[efAttr.Name] = "";
+                                }
+                            }
+
+                            // ============================================================
+                            // 5. Write rows
+                            // ============================================================
+                            for (int i = 0; i < N; i++)
+                            {
+                                col = 1;
+
+                                ws.Cells[row, col++].Value = efName;
+
+                                foreach (var efAttr in selectedEFAttributes)
+                                    ws.Cells[row, col++].Value = staticValues[efAttr.Name];
+
+                                ws.Cells[row, col++].Value = primaryElem;
+
+                                // Timestamp
+                                ws.Cells[row, col].Style.Numberformat.Format = "yyyy-mm-dd hh:mm:ss";
+                                ws.Cells[row, col++].Value = timestamps[i];
+
+                                // Attribute values using unique keys
+                                foreach (var attr in selectedAttributes)
+                                {
+                                    string key = attributeKeyMap[attr];
+
+                                    valuesByKey.TryGetValue(key, out var series);
+
+                                    if (series != null && i < series.Count)
+                                        ws.Cells[row, col++].Value = series[i].Value;
+                                    else
+                                        ws.Cells[row, col++].Value = null;
+                                }
+
+                                row++;
+                            }
+                        }
+
+                        ws.Cells[ws.Dimension.Address].AutoFitColumns();
+
+                        // Check for locked file
+                        if (File.Exists(filePath) && IsFileLocked(filePath))
+                        {
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                MessageBox.Show(
+                                    "The file is currently open in Excel.\nPlease close it and try again.",
+                                    "File In Use",
+                                    MessageBoxButton.OK,
+                                    MessageBoxImage.Warning
+                                );
+                            });
+                            return;
+                        }
+
+                        package.SaveAs(new FileInfo(filePath));
+                    }
+                });
+
+                MessageBox.Show("Excel export completed successfully!", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Export failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                if (button != null)
+                {
+                    button.Content = "Export to Excel";
+                    button.IsEnabled = true;
+                }
+            }
+        }
+
+        private bool IsFileLocked(string path)
+        {
+            try
+            {
+                using (var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+                {
+                    // If we can open it for R/W with no sharing, file is NOT locked
+                }
+                return false;
+            }
+            catch (IOException)
+            {
+                return true;    // File is locked
+            }
+            catch
+            {
+                return true;
+            }
+        }
 
         private void SelectAllCheckBox_Click(object sender, RoutedEventArgs e)
         {
@@ -487,24 +1251,331 @@ namespace pidataexport
         }
         private void BatchFilterBox_TextChanged(object sender, TextChangedEventArgs e)
         {
+
             string filterText = BatchFilterBox.Text?.ToLower() ?? string.Empty;
+
+            IncludeParentsCheckBox.IsEnabled = filterText.Length > 0;
 
             _collectionView.Filter = obj =>
             {
                 if (obj is EventFrameRow row)
                 {
                     return string.IsNullOrEmpty(filterText)
-                           || row.BatchId?.ToLower().Contains(filterText) == true
+                           || row.PrimaryElement?.ToLower().Contains(filterText) == true
                            || row.Name?.ToLower().Contains(filterText) == true;
                 }
                 return false;
             };
 
             _collectionView.Refresh();
+
+            
+            IncludeParentsCheckBox_Changed(null, null);
+
+        }
+
+        private void IncludeParentsCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            // keep same filter text logic as your working method
+            string filterText = BatchFilterBox.Text?.ToLower() ?? string.Empty;
+
+            // If no filter text, just keep original behavior (show all)
+            if (string.IsNullOrEmpty(filterText))
+            {
+                // restore simple filter that shows everything (same as your original)
+                _collectionView.Filter = obj =>
+                {
+                    if (obj is EventFrameRow row)
+                    {
+                        return true; // no filter -> show all
+                    }
+                    return false;
+                };
+
+                _collectionView.Refresh();
+                numberOfResults.Content = "";
+                return;
+            }
+
+            // Build the list of matched rows (same rules as your working code)
+            var matches = _eventFrameRows
+                .Where(r => (r.PrimaryElement?.ToLower().Contains(filterText) == true)
+                         || (r.Name?.ToLower().Contains(filterText) == true))
+                .ToList();
+
+            // If checkbox is NOT checked -> use the simple matching filter (no parents)
+            if (IncludeParentsCheckBox.IsChecked != true)
+            {
+                _collectionView.Filter = obj =>
+                {
+                    if (obj is EventFrameRow row)
+                    {
+                        // same match test as above to avoid duplication of logic
+                        return (row.PrimaryElement?.ToLower().Contains(filterText) == true)
+                               || (row.Name?.ToLower().Contains(filterText) == true);
+                    }
+                    return false;
+                };
+
+                numberOfResults.Content = $"{matches.Count} results";
+                _collectionView.Refresh();
+                return;
+            }
+
+            // Checkbox IS checked -> compute matches + parents (single parent chain)
+            var rowsToShow = new HashSet<EventFrameRow>(matches);
+
+            foreach (var match in matches)
+            {
+                int idx = _eventFrameRows.IndexOf(match);
+                if (idx <= 0) continue;
+
+                int level = match.Level;
+
+                // walk upwards to find parents: the "closest above with Level == level - 1"
+                for (int i = idx - 1; i >= 0; i--)
+                {
+                    var candidate = _eventFrameRows[i];
+
+                    if (candidate.Level == level - 1)
+                    {
+                        rowsToShow.Add(candidate);
+                        level--; // now look for the parent of this candidate in the next iterations
+                        if (level <= 0) break; // reached root
+                    }
+                    else if (candidate.Level < level - 1)
+                    {
+                        // jumped above the immediate parent level -> stop searching for this match
+                        break;
+                    }
+                    // else candidate.Level >= level means it's a sibling/descendant — keep scanning upward
+                }
+            }
+
+            // Set the collection view filter to show only rows in rowsToShow
+            _collectionView.Filter = obj =>
+            {
+                if (obj is EventFrameRow row)
+                {
+                    return rowsToShow.Contains(row);
+                }
+                return false;
+            };
+
+            numberOfResults.Content = $"{matches.Count} results (+ parents)";
+            _collectionView.Refresh();
         }
 
 
-        private void EquipementComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void EFDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            // Add attributes for newly checked rows
+            foreach (var item in e.AddedItems)
+            {
+                if (item is EventFrameRow row && row.IsSelected)
+                {
+                    AFEventFrame ef = row.AFEventFrame;
+                    if (ef == null) continue;
+
+                    foreach (AFAttribute attr in ef.Attributes)
+                    {
+                        // Avoid duplicates
+                        if (!_efAttributeRows.Any(a => a.EFName == ef.Name && a.Name == attr.Name))
+                        {
+                            _efAttributeRows.Add(new EFAttributeRow
+                            {
+                                Name = attr.Name,
+                                EFName = ef.Name,
+                                Category = string.Join(", ", attr.Categories.Select(c => c.Name)),
+                                IsSelected = false,
+                                AFEventFrame= ef,
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Remove attributes for unchecked rows
+            foreach (var item in e.RemovedItems)
+            {
+                if (item is EventFrameRow row && !row.IsSelected)
+                {
+                    AFEventFrame ef = row.AFEventFrame;
+                    if (ef == null) continue;
+
+                    var toRemove = _efAttributeRows
+                        .Where(a => a.EFName == ef.Name)
+                        .ToList();  // Copy so we can remove safely
+
+                    foreach (var attr in toRemove)
+                        _efAttributeRows.Remove(attr);
+                }
+            }
+
+            _efAttrCollectionView = CollectionViewSource.GetDefaultView(_efAttributeRows);
+            EFAttrDataGrid.ItemsSource = _efAttrCollectionView;
+        }
+
+
+        private void EFCheckbox_Checked(object sender, RoutedEventArgs e)
+        {
+            var cb = sender as CheckBox;
+            var row = cb.DataContext as EventFrameRow;
+            if (row == null) return;
+
+            AFEventFrame ef = row.AFEventFrame;
+            if (ef == null) return;
+
+            foreach (AFAttribute attr in ef.Attributes)
+            {
+                if (!_efAttributeRows.Any(a => a.Name == attr.Name && a.EFName == ef.Name))
+                {
+                    _efAttributeRows.Add(new EFAttributeRow
+                    {
+                        Name = attr.Name,
+                        EFName = ef.Name,
+                        Category = string.Join(", ", attr.Categories.Select(c => c.Name)),
+                        IsSelected = false,
+                        AFEventFrame=ef
+                    });
+                }
+            }
+
+            RefreshEFAttrGrid();
+        }
+
+        private void EFCheckbox_Unchecked(object sender, RoutedEventArgs e)
+        {
+            var cb = sender as CheckBox;
+            var row = cb.DataContext as EventFrameRow;
+            if (row == null) return;
+
+            AFEventFrame ef = row.AFEventFrame;
+            if (ef == null) return;
+
+            var toRemove = _efAttributeRows
+                .Where(a => a.EFName == ef.Name)
+                .ToList();
+
+            foreach (var attr in toRemove)
+                _efAttributeRows.Remove(attr);
+
+            RefreshEFAttrGrid();
+        }
+
+        private void RefreshEFAttrGrid()
+        {
+            _efAttrCollectionView = CollectionViewSource.GetDefaultView(_efAttributeRows);
+            EFAttrDataGrid.ItemsSource = _efAttrCollectionView;
+        }
+        private readonly List<AFElement> afElementList = new List<AFElement>();
+
+        private void EquipementComboBox0_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+
+            if (EquipementComboBox0.SelectedItem == null)
+                return;
+
+            // Get the AFElement selected
+            AFElement selectedElement = EquipementComboBox0.SelectedItem as AFElement;
+            if (selectedElement == null)
+                return;
+
+            string selectedName = selectedElement.Name;
+
+            // Get editable TextBox
+            TextBox textBox = GetComboBoxTextBox(EquipementComboBox0);
+
+            string currentText = (textBox?.Text) ?? (EquipementComboBox0.Text ?? string.Empty);
+
+            var items = currentText
+                .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0)
+                .ToList();
+
+            // Update displayed items (string list)
+            if (!items.Contains(selectedName))
+                items.Add(selectedName);
+
+            // Update AFElement list (actual object list)
+            if (!afElementList.Contains(selectedElement))
+                afElementList.Add(selectedElement);
+
+            string newText = string.Join("; ", items);
+
+            // Defer UI update
+            EquipementComboBox0.Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    if (textBox != null)
+                    {
+                        textBox.Text = newText;
+                        textBox.CaretIndex = newText.Length;
+                    }
+
+                    EquipementComboBox0.Text = newText;
+
+                    // Optional: reset selection so user can pick again
+                    // EquipementComboBox0.SelectedItem = null;
+
+                    EquipementComboBox0.IsDropDownOpen = false;
+                   
+                }),
+                System.Windows.Threading.DispatcherPriority.Background);
+
+            afElementList.RemoveAll(el => !items.Contains(el.Name));
+            getAttributes(afElementList);
+
+        }
+
+
+
+        private TextBox GetComboBoxTextBox(ComboBox combo)
+        {
+            return combo.Template.FindName("PART_EditableTextBox", combo) as TextBox;
+        }
+
+        private void getAttributes(List<AFElement> attrList)
+        {
+            _attributeRows.Clear();
+            if (attrList!=null)
+            {
+                foreach (AFElement selectedItem in attrList)
+                {
+
+                    if (selectedItem == null) return;
+
+                    foreach (AFAttribute attr in selectedItem.Attributes)
+                    {
+                        if (attr.DataReference != null
+                             && attr.DataReference.Name == "PI Point"
+                             && !attr.ConfigString.ToLower().Contains("%@")
+                             && !string.IsNullOrEmpty(attr.ConfigString)
+                             && attr.ConfigString[0] != '|')
+                        {
+
+                            string tagName = attr.ConfigString.Split('\\').LastOrDefault()?.Split('?')[0];
+                            string category = string.Join(", ", attr.Categories.Select(c => c.Name));
+
+                            _attributeRows.Add(new AttributeRow
+                            {
+                                Name = attr.Name,
+                                ElementName = attr.Element.Name,
+                                TagName = tagName,
+                                Category = category,
+                                IsSelected = false
+                            });
+                        }
+                    }
+                }
+           
+                _attrCollectionView = CollectionViewSource.GetDefaultView(_attributeRows);
+                EltAttrDataGrid.ItemsSource = _attrCollectionView;
+            }
+        }
+
+      /*  private void EquipementComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             _attributeRows.Clear();
 
@@ -519,7 +1590,7 @@ namespace pidataexport
                      && !string.IsNullOrEmpty(attr.ConfigString)
                      && attr.ConfigString[0] != '|')
                 {
-                    
+
                     string tagName = attr.ConfigString.Split('\\').LastOrDefault()?.Split('?')[0];
                     string category = string.Join(", ", attr.Categories.Select(c => c.Name));
 
@@ -534,8 +1605,10 @@ namespace pidataexport
             }
 
             _attrCollectionView = CollectionViewSource.GetDefaultView(_attributeRows);
-            EFAttrDataGrid.ItemsSource = _attrCollectionView;
-        }
+            EltAttrDataGrid.ItemsSource = _attrCollectionView;
+
+
+        }*/
         private void AttrFilterBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             string filterText = AttrFilterBox.Text.ToLower();
@@ -548,6 +1621,7 @@ namespace pidataexport
                 {
                     return string.IsNullOrEmpty(filterText)
                            || row.Name.ToLower().Contains(filterText)
+                           || row.ElementName.ToLower().Contains(filterText)
                            || row.TagName.ToLower().Contains(filterText)
                            || row.Category.ToLower().Contains(filterText);
                 }
@@ -640,16 +1714,20 @@ namespace pidataexport
 
         private void SampleIntervalBox_LostFocus(object sender, RoutedEventArgs e)
         {
-            string text = SampleIntervalBox.Text;
+            string text = SampleIntervalPicker.Text;
             if (!System.Text.RegularExpressions.Regex.IsMatch(
                     text, @"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$"))
             {
                 MessageBox.Show("Please enter a valid time in hh:mm:ss format.");
-                SampleIntervalBox.Text = ""; // clear instead of forcing focus
+                SampleIntervalPicker.Text = ""; // clear instead of forcing focus
             }
         }
 
-      
+     
+
 
     }
+
+
+
 }
