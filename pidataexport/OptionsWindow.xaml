@@ -1,0 +1,77 @@
+﻿<Window x:Class="pidataexport.OptionsWindow"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+      xmlns:local="clr-namespace:pidataexport"
+      mc:Ignorable="d" 
+      Title="Options" Height="420" Width="460">
+
+
+
+        <StackPanel Margin="15">
+
+            <!-- GENERAL -->
+            <GroupBox Header="General" Margin="0,0,0,10">
+                <StackPanel Margin="10">
+
+                    <StackPanel Orientation="Horizontal">
+                        <Label Content="Default export folder:" Width="150"/>
+                        <TextBox x:Name="ExportFolderBox" Width="203" Margin="-25,0,0,0"/>
+                        <Button Content=" Browse "
+                            Margin="5,0,0,0"
+                            Click="BrowseExportFolder_Click"/>
+                    </StackPanel>
+
+                    <CheckBox x:Name="AutoOpenExcelCheck"
+                          Margin="0,10,0,0"
+                          Content="Automatically open Excel after export"/>
+
+                </StackPanel>
+            </GroupBox>
+
+            <!-- EF SEARCH -->
+            <GroupBox Header="EF Search" Margin="0,0,0,10">
+                <StackPanel Margin="10">
+                    <CheckBox x:Name="MinimizeEFCheck"
+                          Content="Minimize all by default (show only parent EF)"/>
+                </StackPanel>
+            </GroupBox>
+
+            <!-- UI -->
+            <GroupBox Header="Main Window">
+                <StackPanel Margin="10">
+
+                    <StackPanel Orientation="Horizontal">
+                        <Label Content="Default width:" Width="120"/>
+                        <TextBox x:Name="DefaultWidthBox" Width="80"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <Label Content="Default height:" Width="120"/>
+                        <TextBox x:Name="DefaultHeightBox" Width="80"/>
+                    </StackPanel>
+
+                </StackPanel>
+            </GroupBox>
+
+            <!-- BUTTONS -->
+            <StackPanel Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,20,0,0">
+
+                <Button Content="Save"
+                    Width="80"
+                    Margin="5"
+                    Click="Save_Click"/>
+
+                <Button Content="Cancel"
+                    Width="80"
+                    Margin="5"
+                    Click="Cancel_Click"/>
+
+            </StackPanel>
+
+        </StackPanel>
+
+</Window>

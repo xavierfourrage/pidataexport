@@ -1,0 +1,50 @@
+﻿<Window x:Class="pidataexport.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:pidataexport"
+        mc:Ignorable="d"
+        Title="About" Height="350" Width="400">
+    <StackPanel Margin="20">
+
+        <TextBlock FontWeight="Bold"
+                   FontSize="14"
+                   Text="PI Data Export Tool"/>
+
+        <TextBlock Margin="0,10,0,0"
+                   TextWrapping="Wrap">
+This tool allows users to select Elements (Equipments) and search for their associated PI Event Frames,
+select attributes from Event Frames and Elements,
+and export the resulting time series data to Excel or a CSV file.
+
+
+        </TextBlock>
+        <TextBlock Margin="0,10,0,0"
+                   TextWrapping="Wrap">
+It is designed to simplify batch analysis and
+data extraction from the PI System.
+        </TextBlock>
+        <TextBlock Margin="0,10,0,0"
+                   TextWrapping="Wrap">
+
+            © 2026 ASDAEX. All rights reserved.
+        </TextBlock>
+        <StackPanel Orientation="Horizontal">
+            <Label FontSize="9" > To give feedback or request support, reach out to</Label>
+            <Label Margin="-5,0,0,0" FontSize="9" FontStyle="Italic">xavier.fourrage@asdaex.com</Label>
+        </StackPanel>
+
+
+        <TextBlock Margin="0,10,0,0"
+                   FontStyle="Italic"
+                   Text="Version 3.0"/>
+
+        <Button Content="OK"
+                Width="70"
+                HorizontalAlignment="Right"
+                Margin="0,15,0,0"
+                Click="Ok_Click"/>
+
+    </StackPanel>
+</Window>
